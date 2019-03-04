@@ -1,8 +1,10 @@
 import datetime
 
-from tg_companion.tgclient import CMD_HANDLER, client
 from telethon.tl.functions.account import GetPrivacyRequest
-from telethon.tl.types import InputPrivacyKeyStatusTimestamp, PrivacyValueAllowContacts
+from telethon.tl.types import (InputPrivacyKeyStatusTimestamp,
+                               PrivacyValueAllowAll)
+
+from tg_companion.tgclient import CMD_HANDLER, client
 
 AFK_HELP = """
     **Mark yourself as AFK.**
@@ -21,7 +23,7 @@ intervals = (
     ('hours', 3600),
     ('minutes', 60),
     ('seconds', 1),
-    )
+)
 
 
 @client.CommandHandler(outgoing=True, command="afk", help=AFK_HELP)
@@ -38,7 +40,7 @@ async def afk(event):
 
     if not USER_AFK:
         last_seen_status = await client(GetPrivacyRequest(InputPrivacyKeyStatusTimestamp()))
-        if last_seen_status.rules or not isinstance(last_seen_status.rules, PrivacyValueAllowContacts):
+        if isinstance(last_seen_status.rules, PrivacyValueAllowAll):
             afk_time = datetime.datetime.now()
 
         USER_AFK.update({"yes": reason})

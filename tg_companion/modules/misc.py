@@ -11,8 +11,8 @@ import telethon
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types import User
 
-from tg_companion.modules.rextester.api import Rextester, UnknownLanguage
 from tg_companion.modules.global_bans import GBANNED_USERS
+from tg_companion.modules.rextester.api import UnknownLanguage, rexec
 from tg_companion.tgclient import client
 
 from .._version import __version__
@@ -59,6 +59,7 @@ LOGOUT_HELP = """
     **Logs out the companion from Telegram and deletes the session**
 """
 
+
 @client.CommandHandler(outgoing=True, command="ping", help=PING_HELP)
 @client.log_exception
 async def ping(event):
@@ -78,9 +79,9 @@ async def version(event):
     telethon_version = telethon.__version__
 
     await client.update_message(event, f"__Companion__ (**{bot_version}**),"
-                     f" __Python__ (**{python_version}**),"
-                     f" __Telethon__"
-                     f" (**{telethon_version}**)")
+                                f" __Python__ (**{python_version}**),"
+                                f" __Telethon__"
+                                f" (**{telethon_version}**)")
 
 
 @client.CommandHandler(outgoing=True, command="info", help=INFO_HELP)
@@ -95,7 +96,8 @@ async def user_info(event):
         user = await message.get_sender()
 
     if len(event.text.split()) > 1:
-        user = int(event.text.split()[1]) if event.text.split()[1].isdigit() else event.text.split()[1]
+        user = int(event.text.split()[1]) if event.text.split()[
+            1].isdigit() else event.text.split()[1]
         user = event.text.split()[1]
         user = int(user) if user.isdigit() else user
         try:
@@ -107,6 +109,9 @@ async def user_info(event):
         if not isinstance(user, User):
             await event.reply(f"`@{user.username}` is not a User")
             return
+        if user.deleted:
+            await event.edit("This user has deleted his account. I can't get his info")
+            return
 
     full_user = await client(GetFullUserRequest(user.id))
     firstName = full_user.user.first_name
@@ -117,7 +122,8 @@ async def user_info(event):
 
     REPLY = "<b>User Info:</b>\n"
 
-    REPLY += f"\nFirst Name: {escape(firstName)}"
+    if firstName:
+        REPLY += f"\nFirst Name: {escape(firstName)}"
 
     if lastName:
         REPLY += f"\nLast Name: {escape(lastName)}"
@@ -162,25 +168,22 @@ async def rextestercli(event):
     stdin = regex.group(3)
 
     try:
-        rextester = Rextester(language, code, stdin)
-        res = await rextester.exec()
+        res = await rexec(language, code, stdin)
     except UnknownLanguage as exc:
         await client.update_message(event, str(exc))
         return
 
-    output = ""
-    output += f"**Language:**\n```{language}```"
-    output += f"\n\n**Source:** \n```{code}```"
+    output = f"**Language:**\n\n```{language}```"
+    output += f"\n\n**Source:** \n\n```{code}```"
 
-    if res.result:
-        output += f"\n\n**Result:** \n```{res.result}```"
+    if res.results:
+        output += f"\n\n**Result:** \n\n```{res.results}```"
 
     if res.warnings:
-        output += f"\n\n**Warnings:** \n```{res.warnings}```\n"
+        output += f"\n\n**Warnings:** \n\n```{res.warnings}```\n"
 
     if res.errors:
-        output += f"\n\n**Errors:** \n```{res.errors}```"
-
+        output += f"\n\n**Errors:** \n\n```{res.errors}```"
 
     if len(output) > 4096:
         with io.BytesIO(str.encode(output)) as out_file:
@@ -202,6 +205,14 @@ async def send_logs(event):
         await client.update_message(event, "`There are no logs saved!`")
 
 
+async def aexec(code, event):
+    exec(
+        f'async def __aexec(event): ' +
+        ''.join(f'\n {l}' for l in code.split('\n'))
+    )
+    return await locals()['__aexec'](event)
+
+
 @client.CommandHandler(outgoing=True, command="exec", help=EXEC_HELP)
 async def py_execute(event):
     chat = await event.get_chat()
@@ -220,7 +231,10 @@ async def py_execute(event):
     stdout, stderr, exc = None, None, None
 
     try:
-        exec(code)
+        if "await" in code:
+            await aexec(code, event)
+        else:
+            exec(code)
     except Exception:
         import traceback
         exc = traceback.format_exc()
@@ -248,7 +262,7 @@ async def py_execute(event):
 
         await client.update_message(event, f"**Query**:\n\n`{code}`\n\n**Result:**\n\n`{stdout}`")
     else:
-        await client.update_message(event, "Did you forget to output something?")
+        await client.update_message(event, f"**Query**:\n\n`{code}`\n\n**Result:**\n\n`Success`")
 
 
 @client.CommandHandler(outgoing=True, command="readall", help=READALL_HELP)
@@ -259,10 +273,15 @@ async def readall(event):
         await client.send_read_acknowledge(dialog, clear_mentions=True)
     await client.update_message(event, "`Done. All the messages are marked as read`")
 
-@client.CommandHandler(outgoing=True, command="disconnect", help=DISCONNECT_HELP)
+
+@client.CommandHandler(
+    outgoing=True,
+    command="disconnect",
+    help=DISCONNECT_HELP)
 async def disconnect_companion(event):
     await client.update_message(event, "Thanks for using Telegram Companion. Goodbye!")
     await client.disconnect()
+
 
 @client.CommandHandler(outgoing=True, command="logout")
 async def logout(event):
