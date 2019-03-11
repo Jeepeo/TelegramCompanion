@@ -150,7 +150,7 @@ class CustomClient(TelegramClient):
         return decorator
 
     async def update_message(self, entity, text):
-        """ Alternative for `client.edit_message()` or `self.update_message(event, )`
+        """ Alternative for `client.edit_message()`
             which edit a message and if the edit is not allowed is replying to the respective message.
         """
         try:
@@ -212,6 +212,15 @@ class CustomClient(TelegramClient):
         else:
             await self.update_message(event, f"{path} doesn't exist.")
             return
+
+    @staticmethod
+    async def is_user_admin(chat):
+        if chat.admin_rights:
+            return True
+        elif chat.creator:
+            return True
+        else:
+            return False
 
     @staticmethod
     def convert_file_size(size):

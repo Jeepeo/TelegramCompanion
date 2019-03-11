@@ -34,6 +34,20 @@ UNGBAN_HELP = """
             **Because of the API limitations you'll need to manually unban the user from your chats**
 """
 
+ENABLE_GBANS_HELP = """
+    **Enable global bans from a companion**
+    __Usage:__
+        Reply to a user that has a companion. Works only on reply and only the owner can use it
+        even if he's not using the companion.
+"""
+
+DISABLE_GBANS_HELP = """
+    **Disable global bans from a companion**
+    __Usage:__
+        Reply to a user that has a companion. Works only on reply and only the owner can use it
+        even if he's not using the companion.
+"""
+
 metadata.create_all(
     bind=engine,
     tables=[gbans_tbl, gban_chats_tbl],
@@ -88,7 +102,7 @@ async def gban_user(event):
 
     else:
         if len(split_text) == 0:
-            await event.reply("`You don't seem to be referring to a user.`")
+            await client.update_message(event, "`I don't have any user to gban.`")
             return
 
         if len(split_text) > 1:
@@ -99,11 +113,11 @@ async def gban_user(event):
                 split_text[0]) if split_text[0].isdigit() else split_text[0]
             user = await client.get_entity(split_text[0])
         except Exception:
-            await event.reply("`You don't seem to be referring to a user.`")
+            await client.update_message(event, f"`I don't seem to find this user by {split_text[1]}`.")
             return
 
     if user.id == me.id:
-        await event.reply("`You can't gban yourself`")
+        await client.update_message(event, "`I can't gban myself`!")
         return
 
     if user.username:
@@ -118,7 +132,7 @@ async def gban_user(event):
         for user_data in extract_db_user:
             if user_data[0]:
                 if reason:
-                    await event.reply(f"`This user is already banned but I will update the gban reason!`")
+                    await client.update_message(event, f"`This user is already banned but I will update the gban reason`.")
                     query = db.update(gbans_tbl).where(
                         gbans_tbl.columns.user_id == user.id).values(
                         reason=reason)
@@ -126,7 +140,7 @@ async def gban_user(event):
                     _load_gbanned_users()
                     return
                 else:
-                    await event.reply("`This user is already gbanned. You can update the gban reason by sending another one`")
+                    await client.update_message(event, "`This user is already gbanned. You can update the gban reason by sending another one`.")
                     connection.close()
                     return
 
@@ -135,14 +149,14 @@ async def gban_user(event):
     connection.close()
 
     if reason:
-        await event.reply(f"__Gbanned:__ `{banned_user}`"
+        await client.update_message(event, f"__Gbanned:__ `{banned_user}`"
                           f"\n__Reason:__{reason}"
-                          "\n**This user will be banned in any chat I'm admin and the owner allows/allowed global bans from this companion"
-                          " using** `.enablegbans` **command**")
+                          "\n**This user will be banned in any chat I'm admin and the owner allows/allowed global bans from this companion.="
+                          " using** `.enablegbans` **command**.")
     else:
-        await event.reply(f"__Gbanned:__ `{banned_user}`"
+        await client.update_message(event, f"__Gbanned:__ `{banned_user}`"
                           "\n**This user will be banned in any chat I'm admin and the owner allows/allowed global bans from this companion"
-                          " using** `.enablegbans` **command**")
+                          " using** `.enablegbans` **command**.")
     _load_gbanned_users()
 
 
@@ -160,17 +174,17 @@ async def un_gban(event):
 
     else:
         if len(split_text) == 0:
-            await event.reply("`You don't seem to be referring to a user.`")
+            await client.update_message(event, "`I don't have any user to gban.`")
             return
 
         try:
             user = await client.get_entity(split_text[0])
         except Exception:
-            await event.reply("`You don't seem to be referring to a user.`")
+            await client.update_message(event, f"`I don't seem to find this user by {split_text[1]}`.")
             return
 
     if user.id == me.id:
-        await event.reply("`You can't ungban yourself.`")
+        await client.update_message(event, "`You can't ungban myself.`")
         return
 
     if user.username:
@@ -185,12 +199,12 @@ async def un_gban(event):
         query = gbans_tbl.delete().where(
             gbans_tbl.columns.user_id == user.id)
         connection.execute(query)
-        await event.reply(f"__Ungbanned:__ `{unbanned_user}`"
+        await client.update_message(event, f"__Ungbanned:__ `{unbanned_user}`"
                           "\n**This user have been deleted from the globally banned users database"
-                          " but because of the API limitation you need to manually ungban him in any chat you want him to join again**")
+                          " but because of the API limitation you need to manually ungban him in any chat you want him to join again**.")
 
     else:
-        await event.reply("`This user isn't globally banned`.")
+        await client.update_message(event, "`This user isn't globally banned`.")
     connection.close()
     _load_gbanned_users()
 
@@ -207,10 +221,10 @@ async def ban_on_msg(event):
     user = await event.get_sender()
     reason = GBANNED_USERS.get(user.id)
     if reason:
-        await event.reply("**This user is curently banned on this companion and it shouldn't be here**\n"
-                          f"__Reason:__ {reason}")
+        await client.update_message(event, "**This user is curently banned on this companion and it shouldn't be here**\n"
+                          f"__Reason:__ {reason}.")
     else:
-        await event.reply("**This user is curently banned on this companion and it shouldn't be here**")
+        await client.update_message(event, "**This user is curently banned on this companion and it shouldn't be here**.")
     rights = ChatBannedRights(
         until_date=None,
         view_messages=True,
@@ -235,10 +249,10 @@ async def ban_on_join(event):
             if user.id in GBANNED_USERS:
                 reason = GBANNED_USERS.get(user.id)
                 if reason:
-                    await event.reply("**This user is curently banned on this companion and it shouldn't be here**\n"
-                                      f"__Reason:__ {reason}")
+                    await client.update_message(event, "**This user is curently banned on this companion and it shouldn't be here**\n"
+                                      f"__Reason:__ {reason}.")
                 else:
-                    await event.reply("**This user is curently banned on this companion and it shouldn't be here**")
+                    await client.update_message(event, "**This user is curently banned on this companion and it shouldn't be here**.")
                 rights = ChatBannedRights(
                     until_date=None,
                     view_messages=True,
@@ -260,8 +274,7 @@ async def ban_on_join(event):
         pattern=r"\.disablegbans"))
 @client.log_exception
 async def disable_gbans(event):
-    if not event.reply_to_msg_id:
-        await event.reply("`You need to reply to the user you want to disable global bans from this companion`")
+    if not await event.get_reply_message() or (await event.get_reply_message()).id == (await client.get_me()).id:
         return
 
     chat = await event.get_chat()
@@ -280,14 +293,14 @@ async def disable_gbans(event):
                                 [gban_chats_tbl]).where(
                                 gban_chats_tbl.columns.chat_id == chat.id).values(
                                 is_enabled=False)
-                            await event.reply("`Disabled global bans from this companion.\m`"
-                                              "**Because of the API limitations you'll need to manually unban gbanned users from this group**")
+                            await event.reply("`Disabled global bans from this companion.\n`"
+                                              "**Because of the API limitations you'll need to manually unban gbanned users from this group**.")
                             connection.execute(query)
                             connection.close()
                     else:
-                        await event.reply("This chat doesn't have the companion's global bans enabled")
+                        await event.reply("This chat doesn't have the companion's global bans enabled.")
             else:
-                await event.reply("`Only chat owners can disable global bans from this companion`")
+                await client.event.reply("`Only chat owners can disable global bans from this companion`!")
             _load_gban_enabled_chats()
 
 
@@ -298,8 +311,7 @@ async def disable_gbans(event):
         pattern=r"\.enablegbans"))
 @client.log_exception
 async def enable_gbans(event):
-    if not event.reply_to_msg_id:
-        await event.reply("`You need to reply to the user you want to enable global bans from this companion`")
+    if not await event.get_reply_message() or (await event.get_reply_message()).id == (await client.get_me()).id:
         return
 
     chat = await event.get_chat()
@@ -318,8 +330,8 @@ async def enable_gbans(event):
                                 [gban_chats_tbl]).where(
                                 gban_chats_tbl.columns.chat_id == chat.id).values(
                                 is_enabled=True)
-                            await event.reply("`Enabled global bans from this companion.\m`"
-                                              "**Because of the API limitations you'll need to manually unban gbanned users from this group**")
+                            await event.reply("`Enabled global bans from this companion\n`"
+                                              "**Because of the API limitations you'll need to manually unban gbanned users from this group**.")
                         else:
                             await event.reply("This chat already has enabled the companion's global bans")
                     else:
@@ -328,5 +340,14 @@ async def enable_gbans(event):
                     connection.execute(query)
                     connection.close()
             else:
-                await event.reply("`Only chat owners can enable global bans from this companion`")
+                await event.reply("`Only chat owners can enable global bans from this companion`!")
             _load_gban_enabled_chats
+
+
+@client.CommandHandler(incoming=True, outgoing=True, command="enablegbans", help=ENABLE_GBANS_HELP)
+async def cmd_enable_gbans(event):
+    return await enable_gbans(event)
+
+    @client.CommandHandler(incoming=True, outgoing=True, command="disablegbans", help=DISABLE_GBANS_HELP)
+    async def cmd_enable_gbans(event):
+        return await disable_gbans(event)

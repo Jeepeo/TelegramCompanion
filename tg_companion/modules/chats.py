@@ -7,7 +7,9 @@ from telethon.tl.functions.channels import UpdateUsernameRequest
 from telethon.tl.functions.messages import (EditChatAboutRequest,
                                             EditChatPhotoRequest,
                                             EditChatTitleRequest)
-from telethon.tl.types import MessageMediaDocument, MessageMediaPhoto
+from telethon.tl.functions.channels import EditPhotoRequest, EditTitleRequest
+
+from telethon.tl.types import MessageMediaDocument, MessageMediaPhoto, InputChannel
 
 from tg_companion.tgclient import client
 
@@ -39,11 +41,14 @@ CNAME_HELP = """
 @client.CommandHandler(outgoing=True, command="cpic", help=CPIC_HELP)
 @client.log_exception
 async def update_profile_pic(event):
+    if event.is_private:
+        await client.update_message(event, "Invalid chat type")
+        return
     if event.reply:
         message = await event.get_reply_message()
         chat = await event.get_chat()
-        if not chat.admin_rights or not chat.creator:
-            await client.update_message(event, "`Chat admin privileges are required to do that`")
+        if not await client.is_user_admin(chat):
+            await client.update_message(event, "`Chat admin privileges are required change chat photo`")
             return
         photo = None
         if message.media:
@@ -69,12 +74,17 @@ async def update_profile_pic(event):
             await client.update_message(event, "`UPLOADING`")
             file = await client.upload_file(photo)
             try:
-                await client(EditChatPhotoRequest(chat.id, file))
-                await client.update_message(event, "`Channel picture changed`")
+                if chat.megagroup:
+                    await client(EditPhotoRequest((chat.id), file))
+                else:
+                    await client(EditChatPhotoRequest((chat.id), file))
+                await client.update_message(event, "`Chat picture changed`")
 
             except Exception as exc:
                 if isinstance(exc, errors.PhotoInvalidError):
                     await client.update_message(event, "`The selected photo is invalid`")
+                else:
+                    raise
 
             if isinstance(photo, str):
                 os.remove(photo)
@@ -82,6 +92,9 @@ async def update_profile_pic(event):
 
 @client.CommandHandler(outgoing=True, command="cabout", help=CABOUT_HELP)
 async def update_profile_bio(event):
+    if event.is_private:
+        await client.update_message(event, "Invalid chat type")
+        return
 
     split_text = event.text.split(None, 1)
     print(split_text)
@@ -93,12 +106,12 @@ async def update_profile_bio(event):
     about = split_text[1]
     chat = await event.get_chat()
 
-    if not chat.admin_rights or not chat.creator:
-        await client.update_message(event, "`Chat admin privileges are required to do that`")
+    if not await client.is_user_admin(chat):
+        await client.update_message(event, "`Chat admin privileges are required to change this chat about`")
         return
 
     if len(about) > 255:
-        await client.update_message(event, "`Channel about is too long.`")
+        await client.update_message(event, "`Chat about is too long.`")
 
     else:
         try:
@@ -116,11 +129,14 @@ async def update_profile_bio(event):
 @client.CommandHandler(outgoing=True, command="cuname (.+)", help=CUNAME_HELP)
 @client.log_exception
 async def change_profile_username(event):
+    if event.is_private:
+        await client.update_message(event, "Invalid chat type")
+        return
     username = event.pattern_match.group(1)
     chat = await event.get_chat()
 
-    if not chat.admin_rights or not chat.creator:
-        await client.update_message(event, "`Chat admin privileges are required to do that`")
+    if not await client.is_user_admin(chat):
+        await client.update_message(event, "`Chat admin privileges are required to change this chat username`")
         return
 
     if "@" in username:
@@ -132,32 +148,35 @@ async def change_profile_username(event):
         await client.update_message(event, "`Invalid Username`")
 
     elif len(username) > 30:
-        await client.update_message(event, "`Channel username is too long.`")
+        await client.update_message(event, "`Chat username is too long.`")
 
     elif len(username) < 5:
-        await client.update_message(event, "`Channel username is too short`")
+        await client.update_message(event, "`Chat username is too short`")
 
     else:
         try:
             await client(UpdateUsernameRequest(chat.id, username))
-            await client.update_message(event, "`Succesfully changed channel username`")
+            await client.update_message(event, "`Succesfully changed chat username`")
 
         except Exception as exc:
             if isinstance(exc, errors.AdminsTooMuchError):
                 await client.update_message(event,
-                                            "`You're admin of too many public channels, make some channels private to change the username of this channel.`"
+                                            "`You're admin of too many public channels, make some channels private to change the username of this chat.`"
                                             )
 
             if isinstance(exc, errors.UsernameOccupiedError):
                 await client.update_message(event, f"`{username} is already taken`")
 
             if isinstance(exc, errors.ChatNotModifiedError):
-                await client.update_message(event, "`The chat or channel wasn't modified`")
+                await client.update_message(event, "`The chat wasn't modified`")
 
 
 @client.CommandHandler(outgoing=True, command="cname (.+)", help=CNAME_HELP)
 @client.log_exception
 async def change_profile_name(event):
+    if event.is_private:
+        await client.update_message(event, "Invalid chat type.")
+        return
     split_text = event.text.split(None, 1)
 
     if len(split_text) == 0:
@@ -166,13 +185,16 @@ async def change_profile_name(event):
 
     title = split_text[1]
     chat = await event.get_chat()
-    if not chat.admin_rights or not chat.creator:
-        await client.update_message(event, "`Chat admin privileges are required to do that`")
+    if not await client.is_user_admin(chat):
+        await client.update_message(event, "`Chat admin privileges are required to change the chat title`!")
         return
     try:
-        await client(EditChatTitleRequest(chat.id, title))
-        await client.update_message(event, "`Succesfully changed channel/chat title`")
+        if chat.megagroup:
+            await client(EditTitleRequest(chat.id, title))
+        else:
+            await client(EditChatTitleRequest(chat.id, title))
+        await client.update_message(event, "`Succesfully changed chat's title`!")
 
     except Exception as exc:
         if isinstance(exc, errors.ChatNotModifiedError):
-            await client.update_message(event, "`The chat or channel wasn't modified`")
+            await client.update_message(event, "`The chat or chat wasn't modified`!")

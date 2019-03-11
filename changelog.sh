@@ -15,3 +15,5 @@ printf '%s\n' "$GIT_COMMIT_LOG" | while IFS= read -r line
 do
   echo "- ${line}"
 done
+echo "${NEWLINE}"
+echo "https://github.com/nitanmarcel/TelegramCompanion/compare/$TRAVIS_COMMIT_RANGE"
